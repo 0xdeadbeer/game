@@ -1,7 +1,12 @@
 THE GAME 
 ========
 
-Currently only runs on linux. 
+Development environment for 3D games, testing, skyboxes, advanced graphics
+techniques, graphics from scratch, bgfx, imgui, etc. 
+
+Currently only runs on linux. Hopefully I will make a step-by-step compilation
+guide on YouTube because bgfx is quite a beast to build along with other
+dependencies. 
 
 SUBMODULES
 ==========
