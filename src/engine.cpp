@@ -1,6 +1,5 @@
 #include "bgfx/embedded_shader.h"
 #include "glm/ext/scalar_constants.hpp"
-#include "imgui_internal.h"
 #include <bgfx/defines.h>
 #include <bx/file.h>
 #include <bx/math.h>
@@ -111,7 +110,7 @@ void Engine::Reset(void) {
             0);
 }
 
-int Engine::Init(void) {
+int Engine::Init(int mode) {
     int ret = glfwInit();
     if (ret < 0) {
         ERROR("failed initializing glfw");
@@ -191,32 +190,14 @@ int Engine::Init(void) {
     return 0;
 }
 
-int computation_function_id = COMPUTATION_FUNCTION_WAVE; 
-std::vector<std::string> computation_function_names = {"WAVE" ,"LINEAR XY", "TUBE", "BUMPS"};
-float amplitude = 0.0f; 
-float time_boost = 1.0f; 
-
 float computation_function(float time, float x, float y) {
-    switch (computation_function_id) {
-        case COMPUTATION_FUNCTION_WAVE: 
-            return amplitude * sqrt(x*x + y*y) + 
-                (3 * cos(sqrt(x*x + y*y) - (time*time_boost)));
-        case COMPUTATION_FUNCTION_XY:
-            return amplitude*x*y;
-        case COMPUTATION_FUNCTION_TUBE: 
-            return 1/(amplitude * amplitude * (x*x + y*y));
-        case COMPUTATION_FUNCTION_BUMPS: 
-            return (sin(amplitude*x) * cos(amplitude*y))/amplitude;
-    }
-    return 0;
+    return x/y; 
 }
 
 int Engine::UserLoad(void) {
     EngineObject obj; 
-    obj.graph = new GraphComponent();
-    obj.graph->calculate_callback = &computation_function;
-    obj.graph->space_view = glm::vec3(10.0f);
-    obj.graph->sampling_rate = 0.1f;
+    obj.model = new ModelComponent(); 
+    obj.model->LoadModel("models/dragon.obj");
 
     obj.rotation.x = glm::pi<float>()/3;
     obj.position.z = 4.5f;
@@ -227,71 +208,16 @@ int Engine::UserLoad(void) {
 }
 
 void Engine::ImguiUpdate(EngineObject *obj) {
-    GraphComponent *graph = obj->graph;
-
     ImGui::ShowDemoWindow();
 
     ImGui::Begin("Multi-Dimensional Curve Renderer", NULL, ImGuiWindowFlags_NoResize);
-
-    ImGui::Text("Written with love and passion by @0xdeadbeer");
-    ImGui::Text("Libraries: BGFX, BX, BIMG, IMGUI, GLFW, ASSIMP, GLW");
-    ImGui::Text("Source code publicly available online");
-
-
-    // function select
-    ImGui::SeparatorText("Functions");
-    {
-        int size = computation_function_names.size(); 
-        for (int i = 0; i < size; i++) {
-            ImGui::PushItemWidth(-100);
-            if (ImGui::Selectable(computation_function_names.at(i).c_str(), computation_function_id == (1 << i))) {
-                computation_function_id = 1 << i;
-            }
-        }
-
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("amplitude", &amplitude, 0.01f, 0.0f, 15.0f);
-
-        if (computation_function_id & COMPUTATION_FUNCTION_WAVE) {
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("time boost", &time_boost, 0.01f, 0.0f, 25.0f);
-        }
-    }
-
     // general properties
     ImGui::SeparatorText("General");
     {
         ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("sampling rate", &graph->sampling_rate, 0.01f, 0.05f, 10.0f);
-
         if (ImGui::Button("Toggle Debug Wireframe")) {
             this->debug_flag = (this->debug_flag+1) % 2;
         }
-    }
-
-    ImGui::SeparatorText("Miniplots");
-    {
-        std::vector<float> xvalues; 
-        for (float x = -graph->space_view.x; x < graph->space_view.x; x += graph->sampling_rate) {
-           xvalues.push_back(-graph->calculate_callback(this->time, x, 0));
-        }
-
-        std::vector<float> yvalues;
-        for (float y = -graph->space_view.y; y < graph->space_view.y; y += graph->sampling_rate) {
-           yvalues.push_back(-graph->calculate_callback(this->time, 0, y));
-        }
-
-        ImGui::PlotLines("x/z", xvalues.data(), xvalues.size(), 0, NULL, -10.0f, 10.0f, ImVec2(0, 35.0f));
-        ImGui::PlotLines("y/z", yvalues.data(), yvalues.size(), 0, NULL, -10.0f, 10.0f, ImVec2(0, 35.0f));
-    }
-
-    ImGui::SeparatorText("Space View");
-    { 
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("space view x", &graph->space_view.x, 0.01f, 1.0f, 50.0f);
-
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("space view y", &graph->space_view.y, 0.01f, 1.0f, 50.0f);
     }
 
     ImGui::SeparatorText("Position");
@@ -324,61 +250,13 @@ void Engine::ImguiUpdate(EngineObject *obj) {
 void Engine::UserUpdate(void) {
     bgfx::setDebug(this->debug_flag ? BGFX_DEBUG_WIREFRAME : 0);
 
-
-    EngineObject *obj = &(this->objs.at(0));
-    GraphComponent *graph = obj->graph;
-
-    std::vector<float> vertices; 
-    std::vector<unsigned int> indices;
-
+    EngineObject *obj = &this->objs[0]; 
     this->ImguiUpdate(obj);
 
-    int grid_width = 0; 
-    int grid_height = 0; 
-    int grid_verts = 0;
-    for (float y = -graph->space_view.y; y < graph->space_view.y; y += graph->sampling_rate, grid_height++) {
-        for (float x = -graph->space_view.x; x < graph->space_view.x; x += graph->sampling_rate) {
-            graph->Calculate(x, y, vertices);
-        }
-    }
-
-    grid_verts = vertices.size()/3;
-    grid_width = grid_verts/grid_height;
-
-    int grid_idx = 0; 
-    for (int y = 0; y < grid_height-1; y++) {
-        for (int x = 0; x < grid_width-1; x++) {
-            int i = y*(grid_width) + x;
-            indices.push_back(i);
-            indices.push_back(i+1);
-            indices.push_back(i+grid_width);
-
-            indices.push_back(i+grid_width);
-            indices.push_back(i+1+grid_width);
-            indices.push_back(i+1);
-        }
-    }
-
-    grid_idx = indices.size();
-
-    bgfx::TransientVertexBuffer tvb;
-    bgfx::TransientIndexBuffer tvi;
-
-    bgfx::allocTransientVertexBuffer(&tvb, grid_idx, graph->graph_layout);
-    bgfx::allocTransientIndexBuffer(&tvi, grid_idx, true);
-
-    // copy vertices 
-    uint8_t *data = tvb.data;
-    memcpy(data, vertices.data(), grid_verts*3*sizeof(float));
-
-    // copy indices
-    data = tvi.data;
-    memcpy(data, indices.data(), grid_idx*sizeof(unsigned int));
-
     // render
-    bgfx::setState(graph->render_state);
-    bgfx::setVertexBuffer(0, &tvb);
-    bgfx::setIndexBuffer(&tvi);
+    bgfx::setState(obj->model->render_state);
+    bgfx::setVertexBuffer(0, obj->model->vbh);
+    bgfx::setIndexBuffer(obj->model->ibh);
     bgfx::setUniform(this->u_position, &obj->position);
     bgfx::setUniform(this->u_rotation, &obj->rotation);
     bgfx::setUniform(this->u_scale, &obj->scale);
@@ -389,10 +267,6 @@ void Engine::Update(void) {
     this->time = glfwGetTime();
     this->dt = this->time - this->last_time;
     this->last_time = this->time;
-
-    this->objs.at(0).graph->last_time = this->last_time;
-    this->objs.at(0).graph->dt = this->dt;
-    this->objs.at(0).graph->time = this->time;
 
     glfwPollEvents();
 

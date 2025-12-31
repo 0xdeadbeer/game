@@ -23,7 +23,7 @@
 class Engine {
     public:
         Engine(void);
-        int Init(void);
+        int Init(int mode);
         void Update(void);
         void Shutdown(void); 
         int UserLoad(void);
@@ -39,14 +39,6 @@ class Engine {
         int cursor_xpos;
         int cursor_ypos;
 
-        void CalculateGraph(float start, 
-                float end, 
-                float sampling_rate, 
-                float freq, 
-                float amp, 
-                float x_offset, 
-                float y_offset);
-            
         static void error_callback(int error, const char *s);
         static void keyboard_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
         static void cursor_callback(GLFWwindow *window, double x, double y);

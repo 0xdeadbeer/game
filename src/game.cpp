@@ -6,7 +6,14 @@
 int main(int argc, char *argv[]) {
     Engine engine;
     
-    int ret = engine.Init();
+    int mode = 0; 
+    if (argc == 2) {
+        if (strcmp("map", argv[1]) == 0) {
+            mode = 1; 
+        }
+    }
+
+    int ret = engine.Init(mode);
     if (ret < 0) {
         ERROR("failed initializing engine");
         return EXIT_FAILURE;

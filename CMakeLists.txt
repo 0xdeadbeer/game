@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.25.1)
-project(function-renderer
+cmake_minimum_required(VERSION 3.5)
+project(game
         VERSION 0.1
-        DESCRIPTION "Function Renderer"
-        HOMEPAGE_URL "http://git.0xdeadbeer.xyz/0xdeadbeer/function-renderer"
+        DESCRIPTION "The Game"
+        HOMEPAGE_URL "https://github.com/0xdeadbeer/game" 
         LANGUAGES CXX)
 
 add_subdirectory("thirdparty/bgfx.cmake")
@@ -10,8 +10,8 @@ add_subdirectory("thirdparty/glfw.cmake")
 add_subdirectory("thirdparty/assimp.cmake")
 add_subdirectory("thirdparty/imgui.cmake")
 add_subdirectory("thirdparty/glm.cmake")
-add_executable(function-renderer
-    src/function-renderer.cpp
+add_executable(game
+    src/game.cpp
     src/common.cpp
     src/engine.cpp
     src/engine/quad.cpp
@@ -20,14 +20,14 @@ add_executable(function-renderer
     src/engine/graph.cpp
     src/engine/imgui.cpp
 )
-target_link_libraries(function-renderer bx)
-target_link_libraries(function-renderer bgfx)
-target_link_libraries(function-renderer bimg)
-target_link_libraries(function-renderer imgui)
-target_link_libraries(function-renderer glfw)
-target_link_libraries(function-renderer assimp)
-target_link_libraries(function-renderer glm)
-target_include_directories(function-renderer PRIVATE "include/")
+target_link_libraries(game bx)
+target_link_libraries(game bgfx)
+target_link_libraries(game bimg)
+target_link_libraries(game imgui)
+target_link_libraries(game glfw)
+target_link_libraries(game assimp)
+target_link_libraries(game glm)
+target_include_directories(game PRIVATE "include/")
 
 
 # build shaders into /build/shaders/

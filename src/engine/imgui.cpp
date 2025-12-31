@@ -123,8 +123,8 @@ void imgui_render(ImDrawData *draw_data) {
             else if (cmd->ElemCount != 0) {
                 unsigned long state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA;
                 bgfx::TextureHandle th = imgui_font_texture;
-                if (((unsigned int *) cmd->TextureId) != NULL) {
-                    th.idx = (unsigned short) *((unsigned int *) cmd->TextureId);
+                if (((unsigned int *) cmd->GetTexID()) != NULL) {
+                    th.idx = (unsigned short) *((unsigned int *) cmd->GetTexID());
                 }
 
                 state |= BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA);

@@ -1,0 +1,14 @@
+THE GAME 
+========
+
+Currently only runs on linux. 
+
+SUBMODULES
+==========
+
+	bgfx.cmake 
+	glfw.cmake 
+	imgui.cmake 
+	assimp.cmake 
+	glm.cmake
+	

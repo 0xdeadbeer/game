@@ -17,6 +17,8 @@ class ModelComponent {
         std::vector<float> vertices;
         std::vector<unsigned int> indices;
 
+        uint64_t render_state; 
+
         bgfx::VertexLayout layout;
         bgfx::TextureHandle texture;
         bgfx::VertexBufferHandle vbh;
