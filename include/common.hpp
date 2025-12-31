@@ -5,7 +5,7 @@
 #include <bgfx/bgfx.h>
 #include <bx/file.h>
 
-#define GLFW_DEBUG
+// #define GLFW_DEBUG
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720

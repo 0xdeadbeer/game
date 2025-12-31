@@ -13,12 +13,27 @@
 #define CAMERA_NEAR 0.01f
 #define CAMERA_FAR 100.0f
 
-#define INPUT_A         0b00000001
-#define INPUT_D         0b00000010
-#define INPUT_W         0b00000100
-#define INPUT_S         0b00001000
-#define INPUT_ZOOM_OUT  0b00010000
-#define INPUT_ZOOM_IN   0b00100000
+#define ENGINE_INPUT_A              (uint32_t) 1<<0
+#define ENGINE_INPUT_D              (uint32_t) 1<<1
+#define ENGINE_INPUT_W              (uint32_t) 1<<2
+#define ENGINE_INPUT_S              (uint32_t) 1<<3
+#define ENGINE_INPUT_ESC            (uint32_t) 1<<15
+#define INPUT_ZOOM_OUT              (uint32_t) 1<<4
+#define INPUT_ZOOM_IN               (uint32_t) 1<<5
+
+#define ENGINE_FOCUSED_VIEWPORT     (uint32_t) 1<<0
+#define ENGINE_FOCUSED_INTERMEDIATE (uint32_t) 1<<1
+
+enum focused_window {
+    ENGINE_VIEWPORT = 0,  
+    ENGINE_INTERMEDIATE_GPU  
+};
+
+#define ENGINE_DEBUG_STATS          (uint32_t) 1<<0
+#define ENGINE_DEBUG_WIREFRAME      (uint32_t) 1<<1 
+
+#define toggle_bit(a,b) (a & b) ? (a & ~(b)) : (a | b)
+#define check_input(a,b,c) (a == c) && ((b & GLFW_REPEAT) || (b & GLFW_PRESS))
 
 class Engine {
     public:
@@ -28,7 +43,7 @@ class Engine {
         void Shutdown(void); 
         int UserLoad(void);
         void UserUpdate(void);
-        void ImguiUpdate(EngineObject *obj);
+        void ImguiUpdate();
         void Reset(void);
     
         GLFWwindow* main_window;
@@ -47,7 +62,7 @@ class Engine {
         static void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
         static void char_callback(GLFWwindow *window, unsigned int codepoint);
 
-        unsigned char input_map;
+        uint32_t input_map;
 
     private: 
         int width; 
@@ -65,7 +80,10 @@ class Engine {
         float dt; 
         float time; 
 
-        int debug_flag;
+        uint32_t focused; 
+
+        bool debug_wireframe; 
+        bool debug_stats; 
 };
 
 #endif 

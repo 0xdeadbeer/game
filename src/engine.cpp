@@ -20,34 +20,33 @@
 #include <engine/graph.hpp>
 #include <engine/model.hpp>
 
-Engine::Engine(void) {
+Engine::Engine(void) : 
+    main_view(0),
+    last_time(0),
+    dt(0),
+    time(0),
+    input_map(0),
+    focused(ENGINE_INTERMEDIATE_GPU),
+    debug_stats(0),
+    debug_wireframe(0) {
     this->width = DEFAULT_WIDTH;
     this->height = DEFAULT_HEIGHT;
-    this->title = "Polynomial Graphical Viewer";
-
-    this->main_view = 0;
+    this->title = "Dev game";
 
     memset(this->keyboard_slots, 0, sizeof(this->keyboard_slots));
     memset(this->cursor_slots, 0, sizeof(this->cursor_slots));
-
-    this->last_time = 0; 
-    this->dt = 0; 
-    this->time = 0; 
-    this->input_map = 0; 
-    this->debug_flag = 0; 
 }
 
 void Engine::keyboard_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     Engine *engine = (Engine *) glfwGetWindowUserPointer(window);
     engine->keyboard_slots[key] = action; 
 
-    unsigned char new_input_map; 
-    new_input_map |= (key == GLFW_KEY_A) && ((action & GLFW_REPEAT) || (action & GLFW_PRESS)) ? INPUT_A : 0;
-    new_input_map |= (key == GLFW_KEY_D) && ((action & GLFW_REPEAT) || (action & GLFW_PRESS)) ? INPUT_D : 0; 
-    new_input_map |= (key == GLFW_KEY_W) && ((action & GLFW_REPEAT) || (action & GLFW_PRESS)) ? INPUT_W : 0; 
-    new_input_map |= (key == GLFW_KEY_S) && ((action & GLFW_REPEAT) || (action & GLFW_PRESS)) ? INPUT_S : 0; 
-    new_input_map |= (key == GLFW_KEY_UP) && ((action & GLFW_REPEAT) || (action & GLFW_PRESS)) ? INPUT_ZOOM_IN : 0; 
-    new_input_map |= (key == GLFW_KEY_DOWN) && ((action & GLFW_REPEAT) || (action & GLFW_PRESS)) ? INPUT_ZOOM_OUT : 0; 
+    uint32_t new_input_map; 
+    new_input_map |= check_input(key, action, GLFW_KEY_A) ? ENGINE_INPUT_A : 0;
+    new_input_map |= check_input(key, action, GLFW_KEY_D) ? ENGINE_INPUT_D : 0; 
+    new_input_map |= check_input(key, action, GLFW_KEY_W) ? ENGINE_INPUT_W : 0; 
+    new_input_map |= check_input(key, action, GLFW_KEY_S) ? ENGINE_INPUT_S : 0; 
+    new_input_map |= check_input(key, action, GLFW_KEY_ESCAPE) ? ENGINE_INPUT_ESC : 0; 
 
     engine->input_map = new_input_map;
 }
@@ -56,29 +55,70 @@ bx::Vec3 at = {0.0f, 0.0f, 0.0f};
 bx::Vec3 eye = {0.0f, 0.0f, -35.0f};
 
 double prev_x = 0.0f; 
+double prev_y = 0.0f; 
+bool start = false; 
 void Engine::cursor_callback(GLFWwindow *window, double x, double y) {
     Engine *engine = (Engine *) glfwGetWindowUserPointer(window);
+    if (engine->focused == ENGINE_FOCUSED_VIEWPORT) {
+        return; 
+    }
+
     engine->cursor_xpos = x;
     engine->cursor_ypos = y;
 
     float dx = x-prev_x; 
+    float dy = y-prev_y; 
+
     prev_x = x;
+    prev_y = y; 
+
+    if (!start) {
+        start = true; 
+        return; 
+    }
+
     eye.x -= dx / 10;
+    eye.y -= dy / 10; 
+
+    float view[16];
+    bx::mtxLookAt(view, eye, at);
+
+    float proj[16];
+    bx::mtxProj(proj, 60.0f, float(engine->width)/float(engine->height), 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
+
+    bgfx::setViewTransform(engine->main_view, view, proj);
 }
 
 void Engine::cursor_button_callback(GLFWwindow *window, int button, int action, int mods) {
     Engine *engine = (Engine *) glfwGetWindowUserPointer(window);
     engine->cursor_slots[button] = action;
 
-    ImGuiIO &io = ImGui::GetIO();
-    if (button >= 0 && button < IM_ARRAYSIZE(io.MouseDown)) {
-        if (action == GLFW_PRESS) {
-            io.MouseDown[button] = true;
-        }
-        else {
-            io.MouseDown[button] = false;
-        }
+    if (engine->focused == ENGINE_VIEWPORT) {
+        return; 
     }
+
+    ImGuiIO &io = ImGui::GetIO();
+    if (button < 0) {
+        return; 
+    }
+
+    if (button >= IM_ARRAYSIZE(io.MouseDown)) {
+        return; 
+    }
+
+    if (action == GLFW_PRESS) {
+        io.MouseDown[button] = true;
+        return; 
+    }
+
+    io.MouseDown[button] = false;
+
+    if (io.WantCaptureMouse) {
+        return; 
+    }
+
+    engine->focused = ENGINE_VIEWPORT; 
+    glfwSetInputMode(engine->main_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void Engine::window_size_callback(GLFWwindow *window, int width, int height) {
@@ -119,13 +159,7 @@ int Engine::Init(int mode) {
 
     glfwSetErrorCallback(this->error_callback);
 
-    this->main_window = glfwCreateWindow(this->width, this->height, this->title.c_str(), 
-#ifdef GLFW_DEBUG
-            NULL
-#else 
-            glfwGetPrimaryMonitor() // fullscreen
-#endif
-            , NULL);
+    this->main_window = glfwCreateWindow(this->width, this->height, this->title.c_str(), NULL, NULL);
     if (!this->main_window) {
         ERROR("failed creating window");
         return -1;
@@ -138,10 +172,7 @@ int Engine::Init(int mode) {
     glfwSetWindowSizeCallback(this->main_window, this->window_size_callback);
     glfwSetScrollCallback(this->main_window, this->scroll_callback);
     glfwSetCharCallback(this->main_window, this->char_callback);;
-
-#ifdef GLFW_DEBUG
-    glfwSetInputMode(this->main_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-#endif
+    glfwSetInputMode(this->main_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
     bgfx::Init init;
     init.platformData.ndt = glfwGetX11Display();
@@ -167,7 +198,7 @@ int Engine::Init(int mode) {
         bx::mtxLookAt(view, eye, at);
 
         float proj[16];
-        bx::mtxProj(proj, 60.0f, float(this->width)/float(this->height), 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
+        bx::mtxProj(proj, 60.0f, (float) this->width/this->height, 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
 
         bgfx::setViewTransform(this->main_view, view, proj);
     }
@@ -190,10 +221,6 @@ int Engine::Init(int mode) {
     return 0;
 }
 
-float computation_function(float time, float x, float y) {
-    return x/y; 
-}
-
 int Engine::UserLoad(void) {
     EngineObject obj; 
     obj.model = new ModelComponent(); 
@@ -203,64 +230,60 @@ int Engine::UserLoad(void) {
     obj.position.z = 4.5f;
 
     this->objs.push_back(obj);
+    obj.position.x = 10.0f; 
+    obj.position.z = -30.0f; 
+    this->objs.push_back(obj);
+    obj.position.x = -30.0f; 
+    obj.position.z = -10.0f; 
+    this->objs.push_back(obj);
 
     return 0;
 }
 
-void Engine::ImguiUpdate(EngineObject *obj) {
+void Engine::ImguiUpdate() {
     ImGui::ShowDemoWindow();
 
-    ImGui::Begin("Multi-Dimensional Curve Renderer", NULL, ImGuiWindowFlags_NoResize);
+    ImGui::Begin("Mapper for my game", NULL, ImGuiWindowFlags_MenuBar);
+    
     // general properties
-    ImGui::SeparatorText("General");
-    {
-        ImGui::PushItemWidth(-100);
-        if (ImGui::Button("Toggle Debug Wireframe")) {
-            this->debug_flag = (this->debug_flag+1) % 2;
+    if (ImGui::BeginMenuBar()) {
+        if (ImGui::BeginMenu("Debug")) { 
+            ImGui::MenuItem("Toggle debug wireframe", NULL, &this->debug_wireframe);
+            ImGui::MenuItem("Toggle debug stats", NULL, &this->debug_stats);
+            ImGui::EndMenu();
         }
-    }
 
-    ImGui::SeparatorText("Position");
-    { 
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("position x", &obj->position.x, 0.01f, -30.0f, 30.0f);
-
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("position y", &obj->position.y, 0.01f, -30.0f, 30.0f);
-
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("position z", &obj->position.z, 0.01f, -30.0f, 30.0f);
-    }
-
-    ImGui::SeparatorText("Rotation");
-    { 
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("rotation x", &obj->rotation.x, 0.01f, -2*glm::pi<float>(), 2*glm::pi<float>());
-
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("rotation y", &obj->rotation.y, 0.01f, -2*glm::pi<float>(), 2*glm::pi<float>());
-
-        ImGui::PushItemWidth(-100);
-        ImGui::DragFloat("rotation z", &obj->rotation.z, 0.01f, -2*glm::pi<float>(), 2*glm::pi<float>());
+        ImGui::EndMenuBar();
     }
 
     ImGui::End();
 }
 
 void Engine::UserUpdate(void) {
-    bgfx::setDebug(this->debug_flag ? BGFX_DEBUG_WIREFRAME : 0);
+    bgfx::setDebug(
+        (this->debug_wireframe ? BGFX_DEBUG_WIREFRAME : 0) | 
+        (this->debug_stats ? BGFX_DEBUG_STATS : 0)
+    );
 
-    EngineObject *obj = &this->objs[0]; 
-    this->ImguiUpdate(obj);
+    if (this->input_map & ENGINE_INPUT_ESC) {
+        this->focused = ENGINE_FOCUSED_VIEWPORT; 
+        glfwSetInputMode(this->main_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
 
-    // render
-    bgfx::setState(obj->model->render_state);
-    bgfx::setVertexBuffer(0, obj->model->vbh);
-    bgfx::setIndexBuffer(obj->model->ibh);
-    bgfx::setUniform(this->u_position, &obj->position);
-    bgfx::setUniform(this->u_rotation, &obj->rotation);
-    bgfx::setUniform(this->u_scale, &obj->scale);
-    bgfx::submit(this->main_view, this->program);
+    this->ImguiUpdate();
+
+    for (int i = 0; i < this->objs.size(); i++) { 
+        EngineObject *obj = &this->objs[i]; 
+
+        // render
+        bgfx::setState(obj->model->render_state);
+        bgfx::setVertexBuffer(0, obj->model->vbh);
+        bgfx::setIndexBuffer(obj->model->ibh);
+        bgfx::setUniform(this->u_position, &obj->position);
+        bgfx::setUniform(this->u_rotation, &obj->rotation);
+        bgfx::setUniform(this->u_scale, &obj->scale);
+        bgfx::submit(this->main_view, this->program);
+    } 
 }
 
 void Engine::Update(void) {

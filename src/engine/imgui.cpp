@@ -162,11 +162,11 @@ void imgui_events(float dt) {
 
     io.DeltaTime = dt;
 
-    const ImVec2 mouse_pos_backup = io.MousePos;
+    ImVec2 mouse_pos_backup = io.MousePos;
     io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
 
-    const bool focused = glfwGetWindowAttrib(imgui_window, GLFW_FOCUSED) != 0;
-    if (focused) {
+    bool unfocused = glfwGetInputMode(imgui_window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED; 
+    if (!unfocused) {
         if (io.WantSetMousePos) {
             glfwSetCursorPos(imgui_window, (double) mouse_pos_backup.x, (double) mouse_pos_backup.y);
         } else {
@@ -177,9 +177,12 @@ void imgui_events(float dt) {
         }
     }
 
+    if (unfocused) { 
+        return; 
+    }
+
     ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
     glfwSetCursor(imgui_window, mouse_cursors[imgui_cursor] ? mouse_cursors[imgui_cursor] : mouse_cursors[ImGuiMouseCursor_Arrow]);
-    glfwSetInputMode(imgui_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 }
 
 void imgui_shutdown(void) {
