@@ -28,7 +28,9 @@ Engine::Engine(void) :
     input_map(0),
     focused(ENGINE_INTERMEDIATE_GPU),
     debug_stats(0),
-    debug_wireframe(0) {
+    debug_wireframe(0),
+    pitch(0),
+    yaw(0) {
     this->width = DEFAULT_WIDTH;
     this->height = DEFAULT_HEIGHT;
     this->title = "Dev game";
@@ -51,20 +53,24 @@ void Engine::keyboard_callback(GLFWwindow *window, int key, int scancode, int ac
     engine->input_map = new_input_map;
 }
 
-bx::Vec3 at = {0.0f, 0.0f, 0.0f};
 bx::Vec3 eye = {0.0f, 0.0f, -35.0f};
+bx::Vec3 at = {0.0f, 0.0f, 1.0f};
+bx::Vec3 up = {0.0f, 1.0f, 0.0f}; 
 
 double prev_x = 0.0f; 
 double prev_y = 0.0f; 
-bool start = false; 
+bool start = true; 
 void Engine::cursor_callback(GLFWwindow *window, double x, double y) {
     Engine *engine = (Engine *) glfwGetWindowUserPointer(window);
-    if (engine->focused == ENGINE_FOCUSED_VIEWPORT) {
+    if (engine->focused == ENGINE_INTERMEDIATE_GPU) {
         return; 
     }
 
-    engine->cursor_xpos = x;
-    engine->cursor_ypos = y;
+    if (start == true) {
+        prev_x = x; 
+        prev_y = y; 
+        start = false; 
+    }
 
     float dx = x-prev_x; 
     float dy = y-prev_y; 
@@ -72,19 +78,21 @@ void Engine::cursor_callback(GLFWwindow *window, double x, double y) {
     prev_x = x;
     prev_y = y; 
 
-    if (!start) {
-        start = true; 
-        return; 
-    }
+    float sensitivity = 0.1; 
+    engine->pitch += bx::clamp(dy * sensitivity, -90.0f, 90.0f); 
+    engine->yaw -= dx * sensitivity; 
 
-    eye.x -= dx / 10;
-    eye.y -= dy / 10; 
+    bx::Vec3 dir = {
+        bx::cos(bx::toRad(engine->pitch)) * bx::cos(bx::toRad(engine->yaw)),
+        bx::sin(bx::toRad(engine->pitch)),
+        bx::cos(bx::toRad(engine->pitch)) * bx::sin(bx::toRad(engine->yaw))
+    }; 
 
     float view[16];
-    bx::mtxLookAt(view, eye, at);
+    bx::mtxLookAt(view, eye, bx::add(eye, dir));
 
     float proj[16];
-    bx::mtxProj(proj, 60.0f, float(engine->width)/float(engine->height), 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
+    bx::mtxProj(proj, 120.0f, float(engine->width)/float(engine->height), 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
 
     bgfx::setViewTransform(engine->main_view, view, proj);
 }
@@ -117,8 +125,9 @@ void Engine::cursor_button_callback(GLFWwindow *window, int button, int action, 
         return; 
     }
 
-    engine->focused = ENGINE_VIEWPORT; 
     glfwSetInputMode(engine->main_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    engine->focused = ENGINE_VIEWPORT; 
+    start = true; 
 }
 
 void Engine::window_size_callback(GLFWwindow *window, int width, int height) {
@@ -227,15 +236,21 @@ int Engine::UserLoad(void) {
     obj.model->LoadModel("models/dragon.obj");
 
     obj.rotation.x = glm::pi<float>()/3;
-    obj.position.z = 4.5f;
 
-    this->objs.push_back(obj);
+    obj.position.z = -20.0f; 
+    obj.position.x = -10.0f; 
+    this->objs.push_back(obj); 
+
     obj.position.x = 10.0f; 
-    obj.position.z = -30.0f; 
-    this->objs.push_back(obj);
-    obj.position.x = -30.0f; 
-    obj.position.z = -10.0f; 
-    this->objs.push_back(obj);
+    this->objs.push_back(obj); 
+
+    obj.position.z = 0.0f;
+    obj.position.x = -5.0f;
+
+    for (int i = 0; i < 10; i++) {
+        this->objs.push_back(obj);
+        obj.position.x += 1.0f; 
+    }
 
     return 0;
 }
@@ -266,14 +281,19 @@ void Engine::UserUpdate(void) {
     );
 
     if (this->input_map & ENGINE_INPUT_ESC) {
-        this->focused = ENGINE_FOCUSED_VIEWPORT; 
+        this->focused = ENGINE_INTERMEDIATE_GPU;  
         glfwSetInputMode(this->main_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 
     this->ImguiUpdate();
 
+    float mtx[16]; 
     for (int i = 0; i < this->objs.size(); i++) { 
         EngineObject *obj = &this->objs[i]; 
+
+        bx::mtxRotateXYZ(mtx, obj->rotation.x, obj->rotation.y, obj->rotation.z);
+        bx::mtxTranslate(mtx, obj->position.x, obj->position.y, obj->position.z);
+        bgfx::setTransform(mtx);
 
         // render
         bgfx::setState(obj->model->render_state);

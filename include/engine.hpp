@@ -21,9 +21,6 @@
 #define INPUT_ZOOM_OUT              (uint32_t) 1<<4
 #define INPUT_ZOOM_IN               (uint32_t) 1<<5
 
-#define ENGINE_FOCUSED_VIEWPORT     (uint32_t) 1<<0
-#define ENGINE_FOCUSED_INTERMEDIATE (uint32_t) 1<<1
-
 enum focused_window {
     ENGINE_VIEWPORT = 0,  
     ENGINE_INTERMEDIATE_GPU  
@@ -51,8 +48,8 @@ class Engine {
 
         int keyboard_slots[GLFW_KEY_LAST];
         int cursor_slots[GLFW_MOUSE_BUTTON_LAST+1];
-        int cursor_xpos;
-        int cursor_ypos;
+        float pitch;
+        float yaw;
 
         static void error_callback(int error, const char *s);
         static void keyboard_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
