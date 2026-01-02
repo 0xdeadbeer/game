@@ -1,0 +1,13 @@
+TODO
+====
+
+    [ ] add 3d camera to viewport 
+    [ ] add 3d movement to viewport 
+    [ ] custom 3d object loading 
+    [ ] texture loading 
+    [ ] color and texture modifications 
+    [ ] define mapping file standard 
+    [ ] export map to file 
+    [ ] import map to viewport 
+    [ ] shortcuts
+
