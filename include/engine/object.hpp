@@ -11,8 +11,15 @@
 
 class EngineObject {
     public:
-        EngineObject() : position(0.0f), rotation(0.0f), scale(1.0f), graph(NULL), model(NULL) {}
+        EngineObject() : 
+            name("Object"),
+            position(0.0f), 
+            rotation(0.0f), 
+            scale(1.0f), 
+            graph(NULL), 
+            model(NULL) {}
 
+        std::string name; 
         glm::vec4 position;
         glm::vec4 rotation;
         glm::vec4 scale;

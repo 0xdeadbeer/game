@@ -30,7 +30,8 @@ Engine::Engine(void) :
     debug_stats(0),
     debug_wireframe(0),
     pitch(0),
-    yaw(0) {
+    yaw(0), 
+    obj_selected(0) {
     this->width = DEFAULT_WIDTH;
     this->height = DEFAULT_HEIGHT;
     this->title = "Dev game";
@@ -79,8 +80,10 @@ void Engine::cursor_callback(GLFWwindow *window, double x, double y) {
     prev_y = y; 
 
     float sensitivity = 0.1; 
-    engine->pitch += bx::clamp(dy * sensitivity, -90.0f, 90.0f); 
+    engine->pitch -= dy * sensitivity;
     engine->yaw -= dx * sensitivity; 
+
+    engine->pitch = bx::clamp(engine->pitch, -90.0f, 90.0f);
 
     bx::Vec3 dir = {
         bx::cos(bx::toRad(engine->pitch)) * bx::cos(bx::toRad(engine->yaw)),
@@ -207,7 +210,7 @@ int Engine::Init(int mode) {
         bx::mtxLookAt(view, eye, at);
 
         float proj[16];
-        bx::mtxProj(proj, 60.0f, (float) this->width/this->height, 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
+        bx::mtxProj(proj, 120.0f, (float) this->width/this->height, 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
 
         bgfx::setViewTransform(this->main_view, view, proj);
     }
@@ -235,7 +238,6 @@ int Engine::UserLoad(void) {
     obj.model = new ModelComponent(); 
     obj.model->LoadModel("models/dragon.obj");
 
-    obj.rotation.x = glm::pi<float>()/3;
 
     obj.position.z = -20.0f; 
     obj.position.x = -10.0f; 
@@ -258,20 +260,106 @@ int Engine::UserLoad(void) {
 void Engine::ImguiUpdate() {
     ImGui::ShowDemoWindow();
 
-    ImGui::Begin("Mapper for my game", NULL, ImGuiWindowFlags_MenuBar);
-    
-    // general properties
-    if (ImGui::BeginMenuBar()) {
-        if (ImGui::BeginMenu("Debug")) { 
-            ImGui::MenuItem("Toggle debug wireframe", NULL, &this->debug_wireframe);
-            ImGui::MenuItem("Toggle debug stats", NULL, &this->debug_stats);
-            ImGui::EndMenu();
+    { 
+        ImGui::Begin("Objects window", NULL, ImGuiWindowFlags_MenuBar);
+        
+        // general properties
+        if (ImGui::BeginMenuBar()) {
+            if (ImGui::BeginMenu("Debug")) { 
+                ImGui::MenuItem("Toggle debug wireframe", NULL, &this->debug_wireframe);
+                ImGui::MenuItem("Toggle debug stats", NULL, &this->debug_stats);
+                ImGui::EndMenu();
+            }
+
+            ImGui::EndMenuBar();
         }
 
-        ImGui::EndMenuBar();
+        ImGui::Text("Object tree structure:");
+
+        // object tree structure 
+        if (ImGui::BeginTable("3ways", 2, ImGuiTableFlags_Resizable)) {
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoHide);
+            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoHide);
+            ImGui::TableHeadersRow(); 
+
+            size_t n = this->objs.size(); 
+            for (size_t i = 0; i < n; i++) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                EngineObject *obj = &this->objs[i];
+                ImGui::PushID(obj);
+
+                size_t flags = ImGuiTreeNodeFlags_SpanAllColumns | 
+                    ImGuiTreeNodeFlags_Leaf | 
+                    ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                flags |= ImGuiTreeNodeFlags_Selected ? this->obj_selected == obj : 0; 
+
+                if (ImGui::TreeNodeEx(obj->name.c_str(), flags)) {
+                    this->obj_selected  = ImGui::IsItemClicked() ? obj : this->obj_selected;  
+                }
+                ImGui::PopID();
+
+                ImGui::TableNextColumn();
+                ImGui::Text("Engine::EngineObject");
+            } 
+
+            ImGui::EndTable();
+        }
+
+
+        ImGui::End();
     }
 
-    ImGui::End();
+    ImGui::Begin("Object properties window", NULL, ImGuiWindowFlags_MenuBar); 
+
+    if (this->obj_selected) { 
+        EngineObject *obj = this->obj_selected; 
+        ImGui::Text("selected object name: %s", obj->name.c_str());
+        ImGui::Text("selected object location: %p", obj);
+
+        ImGui::Text("Position: "); 
+        ImGui::SeparatorText("Position");
+        { 
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("position x", &obj->position.x, 0.01f, -30.0f, 30.0f);
+
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("position y", &obj->position.y, 0.01f, -30.0f, 30.0f);
+
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("position z", &obj->position.z, 0.01f, -30.0f, 30.0f);
+        }
+
+        ImGui::SeparatorText("Rotation");
+        { 
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("Rotation x", &obj->rotation.x, 0.01f, -30.0f, 30.0f);
+
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("Rotation y", &obj->rotation.y, 0.01f, -30.0f, 30.0f);
+
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("Rotation z", &obj->rotation.z, 0.01f, -30.0f, 30.0f);
+        }
+
+        ImGui::SeparatorText("Scale");
+        { 
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("Scale x", &obj->scale.x, 0.01f, -30.0f, 30.0f);
+
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("Scale y", &obj->scale.y, 0.01f, -30.0f, 30.0f);
+
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat("Scale z", &obj->scale.z, 0.01f, -30.0f, 30.0f);
+        }
+    } 
+    else {
+        ImGui::Text("Object properties...");
+    } 
+
+    ImGui::End(); 
 }
 
 void Engine::UserUpdate(void) {
@@ -287,12 +375,19 @@ void Engine::UserUpdate(void) {
 
     this->ImguiUpdate();
 
+    float pos_mtx[16]; 
+    float rot_mtx[16]; 
+    float scl_mtx[16]; 
+    float test[16];
     float mtx[16]; 
     for (int i = 0; i < this->objs.size(); i++) { 
         EngineObject *obj = &this->objs[i]; 
 
-        bx::mtxRotateXYZ(mtx, obj->rotation.x, obj->rotation.y, obj->rotation.z);
-        bx::mtxTranslate(mtx, obj->position.x, obj->position.y, obj->position.z);
+        bx::mtxTranslate(pos_mtx, obj->position.x, obj->position.y, obj->position.z);
+        bx::mtxRotateXYZ(rot_mtx, obj->rotation.x, obj->rotation.y, obj->rotation.z);
+        bx::mtxScale(scl_mtx, obj->scale.x, obj->scale.y, obj->scale.z);
+        bx::mtxMul(test, scl_mtx, pos_mtx);
+        bx::mtxMul(mtx, rot_mtx, test); 
         bgfx::setTransform(mtx);
 
         // render

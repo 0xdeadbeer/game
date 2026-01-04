@@ -72,6 +72,7 @@ class Engine {
         bgfx::UniformHandle u_scale; 
 
         std::vector<EngineObject> objs; 
+        EngineObject *obj_selected; 
 
         float last_time; 
         float dt; 

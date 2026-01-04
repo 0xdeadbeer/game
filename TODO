@@ -1,9 +1,13 @@
 TODO
 ====
 
-    [ ] add 3d camera to viewport 
+    [x] add 3d camera to viewport 
     [ ] add 3d movement to viewport 
-    [ ] custom 3d object loading 
+    [x] add object tree in properties window 
+    [x] add basic properties window 
+    [ ] dynamic inclusion of objects
+    [ ] objects: custom 3d model loading 
+    [ ] skybox 
     [ ] texture loading 
     [ ] color and texture modifications 
     [ ] define mapping file standard 
