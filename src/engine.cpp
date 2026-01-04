@@ -313,10 +313,15 @@ void Engine::ImguiUpdate() {
 
     ImGui::Begin("Object properties window", NULL, ImGuiWindowFlags_MenuBar); 
 
+    char buf1[256] = { 0 }; 
     if (this->obj_selected) { 
         EngineObject *obj = this->obj_selected; 
-        ImGui::Text("selected object name: %s", obj->name.c_str());
-        ImGui::Text("selected object location: %p", obj);
+
+        memset(buf1, 0x00, sizeof(buf1));
+        memcpy(buf1, obj->name.c_str(), obj->name.length()); // assuming (length < sizeof(buff))
+        if (ImGui::InputText("Object Name", buf1, sizeof(buf1))) {
+            obj->name = std::string(buf1);
+        }
 
         ImGui::Text("Position: "); 
         ImGui::SeparatorText("Position");
