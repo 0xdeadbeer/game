@@ -167,12 +167,10 @@ int Engine::Start(int mode) {
         return -1; 
     }
 
-    if (ui.Start(this, &renderer) < 0) {
+    if (ui.Start(main_window, this, &renderer) < 0) {
         ERROR("failed starting ui");
         return -1; 
     }
-
-    imgui_init(this->main_window);
 
     renderer.CameraReset(); 
 

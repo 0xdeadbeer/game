@@ -1,10 +1,21 @@
 #include <imgui.h> 
-#include "engine/imgui.hpp" 
-#include "engine/ui-imgui.hpp" 
+#include <string>
+#include <vector> 
+#include <iostream> 
+#include <filesystem>
+#include <engine/imgui.hpp>
+#include <engine/ui-imgui.hpp>
+#include <GLFW/glfw3.h>
+#define GLFW_EXPOSE_NATIVE_X11
+#include <GLFW/glfw3native.h>
 
-int UI::Start(void *e, void *r) {
+int UI::Start(void *window, void *e, void *r) {
     this->e = (EngineApi *) e; 
     this->r = (RendererApi *) r; 
+
+    imgui_init((GLFWwindow *) window); 
+    ImGuiStyle &style = ImGui::GetStyle(); 
+    style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.1f, 0.1f, 0.1f, 0.1f); 
     return 0; 
 }
 
@@ -98,8 +109,14 @@ void UI::UpdatePropertiesWindow(float dt) {
         ImGui::OpenPopup("File picker dialog"); 
     }
 
-    if (ImGui::BeginPopupModal("File picker dialog", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("hello there this is abstracted away");
+    std::string path = ".";
+    if (ImGui::BeginPopupModal("File picker dialog", NULL, 0)) {
+        ImGui::Text("Choose your file..");
+        ImGui::Separator();
+        for (const auto &entry : std::filesystem::directory_iterator(path)) {
+            ImGui::Selectable(entry.path().stem().c_str(), false);
+        }
+
         ImGui::EndPopup(); 
     }
 
@@ -145,3 +162,4 @@ void UI::UpdatePropertiesWindow(float dt) {
 void UI::Reset(int width, int height) {
     imgui_reset(width, height);
 }
+

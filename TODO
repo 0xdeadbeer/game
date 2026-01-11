@@ -2,7 +2,7 @@ TODO
 ====
 
 
-    [ ] add file selection popup abstraction 
+    [x] add file selection popup abstraction 
     [ ] fix model loading bug (previous mesh is still present) 
     [ ] fix switch object bug (segfault) 
     [ ] ... 

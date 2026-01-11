@@ -33,7 +33,7 @@ struct RendererApi {
 
 struct UIApi {
     UIApi() {}
-    virtual int Start(void *e, void *r) { return 0; }
+    virtual int Start(void *window, void *e, void *r) { return 0; }
     virtual void NewUpdate(float dt) { }
     virtual void Update(float dt) { }
     virtual void UpdateObjectsWindow(float dt) { }
