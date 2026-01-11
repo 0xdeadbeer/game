@@ -13,13 +13,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    int ret = engine.Init(mode);
+    int ret = engine.Start(mode);
     if (ret < 0) {
         ERROR("failed initializing engine");
         return EXIT_FAILURE;
     }
 
-    while (!glfwWindowShouldClose(engine.main_window)) {
+    while (engine.IsOk()) { 
         engine.Update();
     }
     engine.Shutdown();

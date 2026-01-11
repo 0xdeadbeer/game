@@ -20,21 +20,8 @@
 #include <engine/graph.hpp>
 #include <engine/model.hpp>
 
-Engine::Engine(void) : 
-    main_view(0),
-    last_time(0),
-    dt(0),
-    time(0),
-    input_map(0),
-    focused(ENGINE_INTERMEDIATE_GPU),
-    debug_stats(0),
-    debug_wireframe(0),
-    pitch(0),
-    yaw(0), 
-    obj_selected(0) {
-    this->width = DEFAULT_WIDTH;
-    this->height = DEFAULT_HEIGHT;
-    this->title = "Dev game";
+Engine::Engine(void) : last_time(0), dt(0), time(0), input_map(0), focused(ENGINE_INTERMEDIATE_GPU), renderer(), ui(), EngineApi() {
+    this->title = "Mapping engine";
 
     memset(this->keyboard_slots, 0, sizeof(this->keyboard_slots));
     memset(this->cursor_slots, 0, sizeof(this->cursor_slots));
@@ -42,21 +29,36 @@ Engine::Engine(void) :
 
 void Engine::keyboard_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     Engine *engine = (Engine *) glfwGetWindowUserPointer(window);
+    ImGuiIO &io = ImGui::GetIO(); 
+
+    bool escape = check_input(key, action, GLFW_KEY_ESCAPE) ? ENGINE_INPUT_ESC : 0;
+    if (escape) {
+        engine->focused = ENGINE_INTERMEDIATE_GPU;  
+        glfwSetInputMode(engine->main_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+
+    if (engine->focused == ENGINE_INTERMEDIATE_GPU) {
+        ImGuiKey imgui_key = ImGuiKey_None; 
+        switch (key) {
+            case GLFW_KEY_LEFT: imgui_key = ImGuiKey_LeftArrow; break; 
+            case GLFW_KEY_RIGHT: imgui_key = ImGuiKey_RightArrow; break; 
+            case GLFW_KEY_BACKSPACE: imgui_key = ImGuiKey_Backspace; break; 
+        }
+
+        if (imgui_key != ImGuiKey_None) {
+            io.AddKeyEvent(imgui_key, action == GLFW_PRESS);
+        }
+        return; 
+    }
+
     engine->keyboard_slots[key] = action; 
 
-    uint32_t new_input_map; 
-    new_input_map |= check_input(key, action, GLFW_KEY_A) ? ENGINE_INPUT_A : 0;
-    new_input_map |= check_input(key, action, GLFW_KEY_D) ? ENGINE_INPUT_D : 0; 
-    new_input_map |= check_input(key, action, GLFW_KEY_W) ? ENGINE_INPUT_W : 0; 
-    new_input_map |= check_input(key, action, GLFW_KEY_S) ? ENGINE_INPUT_S : 0; 
-    new_input_map |= check_input(key, action, GLFW_KEY_ESCAPE) ? ENGINE_INPUT_ESC : 0; 
-
-    engine->input_map = new_input_map;
+    engine->input_map |= check_input(key, action, GLFW_KEY_A) ? ENGINE_INPUT_A : 0;
+    engine->input_map |= check_input(key, action, GLFW_KEY_D) ? ENGINE_INPUT_D : 0; 
+    engine->input_map |= check_input(key, action, GLFW_KEY_W) ? ENGINE_INPUT_W : 0; 
+    engine->input_map |= check_input(key, action, GLFW_KEY_S) ? ENGINE_INPUT_S : 0; 
 }
 
-bx::Vec3 eye = {0.0f, 0.0f, -35.0f};
-bx::Vec3 at = {0.0f, 0.0f, 1.0f};
-bx::Vec3 up = {0.0f, 1.0f, 0.0f}; 
 
 double prev_x = 0.0f; 
 double prev_y = 0.0f; 
@@ -79,25 +81,7 @@ void Engine::cursor_callback(GLFWwindow *window, double x, double y) {
     prev_x = x;
     prev_y = y; 
 
-    float sensitivity = 0.1; 
-    engine->pitch -= dy * sensitivity;
-    engine->yaw -= dx * sensitivity; 
-
-    engine->pitch = bx::clamp(engine->pitch, -90.0f, 90.0f);
-
-    bx::Vec3 dir = {
-        bx::cos(bx::toRad(engine->pitch)) * bx::cos(bx::toRad(engine->yaw)),
-        bx::sin(bx::toRad(engine->pitch)),
-        bx::cos(bx::toRad(engine->pitch)) * bx::sin(bx::toRad(engine->yaw))
-    }; 
-
-    float view[16];
-    bx::mtxLookAt(view, eye, bx::add(eye, dir));
-
-    float proj[16];
-    bx::mtxProj(proj, 120.0f, float(engine->width)/float(engine->height), 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
-
-    bgfx::setViewTransform(engine->main_view, view, proj);
+    engine->renderer.CameraUpdate(dx, dy); 
 }
 
 void Engine::cursor_button_callback(GLFWwindow *window, int button, int action, int mods) {
@@ -135,8 +119,7 @@ void Engine::cursor_button_callback(GLFWwindow *window, int button, int action, 
 
 void Engine::window_size_callback(GLFWwindow *window, int width, int height) {
     Engine *engine = (Engine *) glfwGetWindowUserPointer(window);
-    engine->width = width; 
-    engine->height = height;
+    engine->renderer.CameraResolution(width, height); 
     engine->Reset();
 }
 
@@ -152,17 +135,10 @@ void Engine::char_callback(GLFWwindow *window, unsigned int codepoint) {
 }
 
 void Engine::Reset(void) {
-    bgfx::reset(this->width, this->height, 0);
-    imgui_reset(this->width, this->height);
-    bgfx::setViewRect(this->main_view, 0, 0, width, height);
-    bgfx::setViewClear(this->main_view, 
-            BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 
-            0x00000000,
-            1.0f,
-            0);
+    renderer.CameraReset(); 
 }
 
-int Engine::Init(int mode) {
+int Engine::Start(int mode) {
     int ret = glfwInit();
     if (ret < 0) {
         ERROR("failed initializing glfw");
@@ -171,239 +147,48 @@ int Engine::Init(int mode) {
 
     glfwSetErrorCallback(this->error_callback);
 
-    this->main_window = glfwCreateWindow(this->width, this->height, this->title.c_str(), NULL, NULL);
+    this->main_window = glfwCreateWindow(DEFAULT_WIDTH, DEFAULT_HEIGHT, this->title.c_str(), NULL, NULL);
     if (!this->main_window) {
         ERROR("failed creating window");
         return -1;
     }
 
-    glfwSetWindowUserPointer(this->main_window, this);
-    glfwSetKeyCallback(this->main_window, this->keyboard_callback);
-    glfwSetCursorPosCallback(this->main_window, this->cursor_callback);
-    glfwSetMouseButtonCallback(this->main_window, this->cursor_button_callback);
-    glfwSetWindowSizeCallback(this->main_window, this->window_size_callback);
-    glfwSetScrollCallback(this->main_window, this->scroll_callback);
-    glfwSetCharCallback(this->main_window, this->char_callback);;
-    glfwSetInputMode(this->main_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetWindowUserPointer(main_window, this);
+    glfwSetKeyCallback(main_window,keyboard_callback);
+    glfwSetCursorPosCallback(main_window,cursor_callback);
+    glfwSetMouseButtonCallback(main_window,cursor_button_callback);
+    glfwSetWindowSizeCallback(main_window,window_size_callback);
+    glfwSetScrollCallback(main_window,scroll_callback);
+    glfwSetCharCallback(main_window,char_callback);
+    glfwSetInputMode(main_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
-    bgfx::Init init;
-    init.platformData.ndt = glfwGetX11Display();
-    init.platformData.nwh = (void*) (uintptr_t) glfwGetX11Window(this->main_window);
-    
-    glfwGetWindowSize(this->main_window, &this->width, &this->height);
-    init.resolution.width = this->width; 
-    init.resolution.height = this->height; 
-    init.resolution.reset = BGFX_RESET_VSYNC;
-    if (!bgfx::init(init)) {
-        ERROR("failed initializing bgfx");
-        return -1;
+    if (renderer.Start(main_window, this, &ui) < 0) { 
+        ERROR("failed starting renderer"); 
+        return -1; 
     }
 
-    bgfx::setViewClear(this->main_view, 
-            BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 
-            0x00000000,
-            1.0f,
-            0);
-
-    {
-        float view[16];
-        bx::mtxLookAt(view, eye, at);
-
-        float proj[16];
-        bx::mtxProj(proj, 120.0f, (float) this->width/this->height, 0.1f, 500.0f, bgfx::getCaps()->homogeneousDepth);
-
-        bgfx::setViewTransform(this->main_view, view, proj);
+    if (ui.Start(this, &renderer) < 0) {
+        ERROR("failed starting ui");
+        return -1; 
     }
-
-    bgfx::setViewRect(this->main_view, 0, 0, this->width, this->height);
-
-    this->u_position = bgfx::createUniform("u_position", bgfx::UniformType::Vec4);
-    this->u_rotation = bgfx::createUniform("u_rotation", bgfx::UniformType::Vec4);
-    this->u_scale = bgfx::createUniform("u_scale", bgfx::UniformType::Vec4);
-    this->program = load_program(DEFAULT_VERTEX, DEFAULT_FRAGMENT);
 
     imgui_init(this->main_window);
-    this->Reset();
 
-    ret = this->UserLoad();
-    if (ret < 0) {
-        return -1;
-    }
+    renderer.CameraReset(); 
 
     return 0;
 }
 
 int Engine::UserLoad(void) {
-    EngineObject obj; 
-    obj.model = new ModelComponent(); 
-    obj.model->LoadModel("models/dragon.obj");
-
-
-    obj.position.z = -20.0f; 
-    obj.position.x = -10.0f; 
-    this->objs.push_back(obj); 
-
-    obj.position.x = 10.0f; 
-    this->objs.push_back(obj); 
-
-    obj.position.z = 0.0f;
-    obj.position.x = -5.0f;
-
-    for (int i = 0; i < 10; i++) {
-        this->objs.push_back(obj);
-        obj.position.x += 1.0f; 
-    }
-
     return 0;
 }
 
-void Engine::ImguiUpdate() {
-    ImGui::ShowDemoWindow();
-
-    { 
-        ImGui::Begin("Objects window", NULL, ImGuiWindowFlags_MenuBar);
-        
-        // general properties
-        if (ImGui::BeginMenuBar()) {
-            if (ImGui::BeginMenu("Debug")) { 
-                ImGui::MenuItem("Toggle debug wireframe", NULL, &this->debug_wireframe);
-                ImGui::MenuItem("Toggle debug stats", NULL, &this->debug_stats);
-                ImGui::EndMenu();
-            }
-
-            ImGui::EndMenuBar();
-        }
-
-        ImGui::Text("Object tree structure:");
-
-        // object tree structure 
-        if (ImGui::BeginTable("3ways", 2, ImGuiTableFlags_Resizable)) {
-            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoHide);
-            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoHide);
-            ImGui::TableHeadersRow(); 
-
-            size_t n = this->objs.size(); 
-            for (size_t i = 0; i < n; i++) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-
-                EngineObject *obj = &this->objs[i];
-                ImGui::PushID(obj);
-
-                size_t flags = ImGuiTreeNodeFlags_SpanAllColumns | 
-                    ImGuiTreeNodeFlags_Leaf | 
-                    ImGuiTreeNodeFlags_NoTreePushOnOpen;
-                flags |= ImGuiTreeNodeFlags_Selected ? this->obj_selected == obj : 0; 
-
-                if (ImGui::TreeNodeEx(obj->name.c_str(), flags)) {
-                    this->obj_selected  = ImGui::IsItemClicked() ? obj : this->obj_selected;  
-                }
-                ImGui::PopID();
-
-                ImGui::TableNextColumn();
-                ImGui::Text("Engine::EngineObject");
-            } 
-
-            ImGui::EndTable();
-        }
-
-
-        ImGui::End();
-    }
-
-    ImGui::Begin("Object properties window", NULL, ImGuiWindowFlags_MenuBar); 
-
-    char buf1[256] = { 0 }; 
-    if (this->obj_selected) { 
-        EngineObject *obj = this->obj_selected; 
-
-        memset(buf1, 0x00, sizeof(buf1));
-        memcpy(buf1, obj->name.c_str(), obj->name.length()); // assuming (length < sizeof(buff))
-        if (ImGui::InputText("Object Name", buf1, sizeof(buf1))) {
-            obj->name = std::string(buf1);
-        }
-
-        ImGui::Text("Position: "); 
-        ImGui::SeparatorText("Position");
-        { 
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("position x", &obj->position.x, 0.01f, -30.0f, 30.0f);
-
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("position y", &obj->position.y, 0.01f, -30.0f, 30.0f);
-
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("position z", &obj->position.z, 0.01f, -30.0f, 30.0f);
-        }
-
-        ImGui::SeparatorText("Rotation");
-        { 
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("Rotation x", &obj->rotation.x, 0.01f, -30.0f, 30.0f);
-
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("Rotation y", &obj->rotation.y, 0.01f, -30.0f, 30.0f);
-
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("Rotation z", &obj->rotation.z, 0.01f, -30.0f, 30.0f);
-        }
-
-        ImGui::SeparatorText("Scale");
-        { 
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("Scale x", &obj->scale.x, 0.01f, -30.0f, 30.0f);
-
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("Scale y", &obj->scale.y, 0.01f, -30.0f, 30.0f);
-
-            ImGui::PushItemWidth(-100);
-            ImGui::DragFloat("Scale z", &obj->scale.z, 0.01f, -30.0f, 30.0f);
-        }
-    } 
-    else {
-        ImGui::Text("Object properties...");
-    } 
-
-    ImGui::End(); 
+void Engine::UserUpdate(void) {
+    // do nothing lol 
 }
 
-void Engine::UserUpdate(void) {
-    bgfx::setDebug(
-        (this->debug_wireframe ? BGFX_DEBUG_WIREFRAME : 0) | 
-        (this->debug_stats ? BGFX_DEBUG_STATS : 0)
-    );
-
-    if (this->input_map & ENGINE_INPUT_ESC) {
-        this->focused = ENGINE_INTERMEDIATE_GPU;  
-        glfwSetInputMode(this->main_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }
-
-    this->ImguiUpdate();
-
-    float pos_mtx[16]; 
-    float rot_mtx[16]; 
-    float scl_mtx[16]; 
-    float test[16];
-    float mtx[16]; 
-    for (int i = 0; i < this->objs.size(); i++) { 
-        EngineObject *obj = &this->objs[i]; 
-
-        bx::mtxTranslate(pos_mtx, obj->position.x, obj->position.y, obj->position.z);
-        bx::mtxRotateXYZ(rot_mtx, obj->rotation.x, obj->rotation.y, obj->rotation.z);
-        bx::mtxScale(scl_mtx, obj->scale.x, obj->scale.y, obj->scale.z);
-        bx::mtxMul(test, scl_mtx, pos_mtx);
-        bx::mtxMul(mtx, rot_mtx, test); 
-        bgfx::setTransform(mtx);
-
-        // render
-        bgfx::setState(obj->model->render_state);
-        bgfx::setVertexBuffer(0, obj->model->vbh);
-        bgfx::setIndexBuffer(obj->model->ibh);
-        bgfx::setUniform(this->u_position, &obj->position);
-        bgfx::setUniform(this->u_rotation, &obj->rotation);
-        bgfx::setUniform(this->u_scale, &obj->scale);
-        bgfx::submit(this->main_view, this->program);
-    } 
+int Engine::IsOk(void) {
+    return !glfwWindowShouldClose(main_window);
 }
 
 void Engine::Update(void) {
@@ -413,26 +198,17 @@ void Engine::Update(void) {
 
     glfwPollEvents();
 
-    imgui_events(this->dt);
-    ImGui::NewFrame();
-    bgfx::touch(this->main_view);
-
+    ui.NewUpdate(dt); 
+    renderer.NewUpdate(dt);
+    
     this->UserUpdate();
 
-    bgfx::frame();
-    ImGui::Render();
-    imgui_render(ImGui::GetDrawData());
+    ui.Update(dt);
+    renderer.Update(dt); 
 }
 
 void Engine::Shutdown(void) { 
     imgui_shutdown();
-
-    bgfx::destroy(this->u_position);
-    bgfx::destroy(this->u_rotation);
-    bgfx::destroy(this->u_scale);
-
-    bgfx::destroy(this->program);
-
     bgfx::shutdown();
     glfwTerminate();
 }

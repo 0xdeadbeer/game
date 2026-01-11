@@ -13,8 +13,9 @@
 #define LOG(x) std::cout << "--log: " << x << std::endl; 
 #define ERROR(x) std::cout << "--error: " << x << std::endl; 
 
-#define DEFAULT_VERTEX "shaders/vs_basic.bin"
-#define DEFAULT_FRAGMENT "shaders/fs_basic.bin"
+#define NORMAL_VERTEX  "shaders/vs_basic.bin"
+#define NORMAL_FRAGMENT "shaders/fs_basic.bin"
+#define SELECTED_FRAGMENT "shaders/fs_selected.bin"
 
 #define COMPUTATION_FUNCTION_WAVE       0b00000001
 #define COMPUTATION_FUNCTION_XY         0b00000010

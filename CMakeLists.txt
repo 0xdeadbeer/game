@@ -14,6 +14,8 @@ add_executable(game
     src/game.cpp
     src/common.cpp
     src/engine.cpp
+    src/engine/ui-imgui.cpp
+    src/engine/renderer.cpp
     src/engine/quad.cpp
     src/engine/object.cpp
     src/engine/model.cpp

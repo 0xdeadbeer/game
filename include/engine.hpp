@@ -2,12 +2,15 @@
 #define ENGINE_HPP
 
 #include <iostream>
+#include <memory>
 #include <bx/file.h>
 #include <bx/bx.h>
 #include <bgfx/bgfx.h>
 #include <GLFW/glfw3.h>
+#include <engine/ui-imgui.hpp>
+#include <engine/renderer.hpp>
 #include <engine/object.hpp>
-#include <memory>
+#include <apis.hpp> 
 
 #define CAMERA_WIDTH 50.0f
 #define CAMERA_NEAR 0.01f
@@ -29,27 +32,23 @@ enum focused_window {
 #define ENGINE_DEBUG_STATS          (uint32_t) 1<<0
 #define ENGINE_DEBUG_WIREFRAME      (uint32_t) 1<<1 
 
+#define set_bit(a,b,c) (c) ? (a) | (c << b) : (a) & ~(c << b)
 #define toggle_bit(a,b) (a & b) ? (a & ~(b)) : (a | b)
 #define check_input(a,b,c) (a == c) && ((b & GLFW_REPEAT) || (b & GLFW_PRESS))
 
-class Engine {
+class Engine : public EngineApi {
     public:
         Engine(void);
-        int Init(int mode);
+        int Start(int mode);
+        int IsOk(void); 
         void Update(void);
         void Shutdown(void); 
         int UserLoad(void);
         void UserUpdate(void);
-        void ImguiUpdate();
         void Reset(void);
     
-        GLFWwindow* main_window;
-        int main_view;
-
         int keyboard_slots[GLFW_KEY_LAST];
         int cursor_slots[GLFW_MOUSE_BUTTON_LAST+1];
-        float pitch;
-        float yaw;
 
         static void error_callback(int error, const char *s);
         static void keyboard_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
@@ -59,29 +58,20 @@ class Engine {
         static void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
         static void char_callback(GLFWwindow *window, unsigned int codepoint);
 
-        uint32_t input_map;
 
     private: 
-        int width; 
-        int height; 
+        Renderer renderer; 
+        UI ui; 
+
         std::string title; 
-
-        bgfx::ProgramHandle program;
-        bgfx::UniformHandle u_position; 
-        bgfx::UniformHandle u_rotation; 
-        bgfx::UniformHandle u_scale; 
-
-        std::vector<EngineObject> objs; 
-        EngineObject *obj_selected; 
+        GLFWwindow* main_window;
 
         float last_time; 
         float dt; 
         float time; 
 
         uint32_t focused; 
-
-        bool debug_wireframe; 
-        bool debug_stats; 
+        uint32_t input_map;
 };
 
 #endif 

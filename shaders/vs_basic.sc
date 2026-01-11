@@ -5,6 +5,8 @@ uniform vec4 u_position;
 uniform vec4 u_rotation;
 uniform vec4 u_scale;
 
+uniform vec4 u_flags;
+
 #include <bgfx_shader.sh>
 #include <shaderlib.sh>
 

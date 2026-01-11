@@ -42,6 +42,7 @@ int ModelComponent::LoadNode(aiScene *scene, aiNode *node) {
 }
 
 int ModelComponent::LoadModel(std::string filename) {
+    this->filename = filename; 
     Assimp::Importer importer;
     aiScene *scene = (aiScene *) importer.ReadFile(filename, aiProcess_Triangulate | aiProcess_FlipUVs);
     if (scene == nullptr || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {

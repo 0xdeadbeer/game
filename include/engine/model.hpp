@@ -14,6 +14,7 @@ class ModelComponent {
         int LoadNode(aiScene *scene, aiNode *node);
         int LoadModel(std::string filename);
 
+        std::string filename; 
         std::vector<float> vertices;
         std::vector<unsigned int> indices;
 
